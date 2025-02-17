@@ -6,7 +6,15 @@ from playwright.async_api import async_playwright
 import os
 
 app = FastAPI()
+async def process_csv(file: UploadFile = File(...)):
+    output_path = "processed_results.csv"
+    df.to_csv(output_path, index=False)
 
+    # Check if file exists before returning
+    if not os.path.exists(output_path):
+        raise HTTPException(status_code=500, detail="File not found")
+
+    return FileResponse(output_path, filename="updated_addresses.csv")
 async def search_zillow(address):
     """Search for a Zillow link using Google search"""
     search_query = f'site:zillow.com "{address}"'
