@@ -79,13 +79,6 @@ async def process_csv(file: UploadFile = File(...)):
                 content={"message": "Missing address-related columns in the spreadsheet."}, status_code=400
             )
 
-        # Create Zillow search links
-        df["Zillow_Search_Link"] = df.apply(
-            lambda row: construct_search_url(
-                row[address_col], row[city_col], row[state_col], row[zip_col]
-            ), axis=1
-        )
-
        # Process all rows with a delay
         zillow_links = []
         for index, row in df.iterrows():
