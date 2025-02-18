@@ -1,6 +1,7 @@
 import pandas as pd
 import time
 import random
+import requests
 from bs4 import BeautifulSoup
 import asyncio
 import urllib.parse
