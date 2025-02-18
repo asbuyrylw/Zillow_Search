@@ -85,7 +85,6 @@ async def process_csv(file: UploadFile = File(...)):
 
         # Process all rows with a delay
         zillow_links = []
-        zillow_prices = []
 
         for index, row in df.iterrows():
             address = row[address_col]
@@ -94,22 +93,15 @@ async def process_csv(file: UploadFile = File(...)):
             zip_code = row[zip_col]
 
             zillow_link = get_zillow_link(address, city, state, zip_code)
-            if "zillow.com" in zillow_link:
-                zillow_data = scrape_zillow_property_info(zillow_link)
-                zillow_links.append(zillow_data.get("url", "No Zillow link found"))
-                zillow_prices.append(zillow_data.get("price", "N/A"))
-            else:
-                zillow_links.append("No Zillow link found")
-                zillow_prices.append("N/A")
+            zillow_links.append(zillow_link)
 
             # Add a random delay between 2 to 10 seconds
             delay = random.randint(2, 10)
             print(f"Waiting {delay} seconds before the next request...")
             time.sleep(delay)
 
-        # Add Zillow links and prices to DataFrame
+        # Add Zillow links to DataFrame
         df["Zillow_Link"] = zillow_links
-        df["Zillow_Price"] = zillow_prices
 
         # Save the updated file
         output_path = "processed_results.csv"
