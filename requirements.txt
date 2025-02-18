@@ -5,3 +5,4 @@ playwright
 python-multipart
 openpyxl
 xlrd
+beautifulsoup4
