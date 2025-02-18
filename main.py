@@ -47,9 +47,10 @@ def get_zillow_link(address, city, state, zip_code):
 
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
+            
             for link in soup.find_all("a"):
                 href = link.get("href")
-                if href and "zillow.com" in href:
+                if href and "zillow.com/homedetails" in href:
                     # Extract the real Zillow URL
                     zillow_link = href.split("&")[0].replace("/url?q=", "")
                     return zillow_link
