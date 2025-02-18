@@ -5,7 +5,12 @@ from fastapi.responses import FileResponse
 from playwright.async_api import async_playwright
 import os
 
-app = FastAPI()
+app = FastAPI(docs_url="/docs", openapi_url="/openapi.json")
+
+@app.get("/")
+def read_root():
+    return {"message": "FastAPI is running!"}
+
 async def process_csv(file: UploadFile = File(...)):
     output_path = "processed_results.csv"
     df.to_csv(output_path, index=False)
