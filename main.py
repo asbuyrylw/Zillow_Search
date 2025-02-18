@@ -1,5 +1,6 @@
 import pandas as pd
 import asyncio
+import urllib.parse
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from playwright.async_api import async_playwright
