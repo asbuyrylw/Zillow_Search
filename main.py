@@ -1,43 +1,67 @@
 import pandas as pd
 import asyncio
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from playwright.async_api import async_playwright
 import os
 
 app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
 
 # Define address-related keywords
-ADDRESS_KEYWORDS = ["address", "street", "city", "state", "zip", "location"]
+ADDRESS_KEYWORDS = ["address", "street"]
+CITY_KEYWORDS = ["city", "town"]
+STATE_KEYWORDS = ["state"]
+ZIP_KEYWORDS = ["zip", "zipcode", "postal"]
 
 def detect_address_columns(df):
-    """Detect columns related to addresses dynamically."""
-    address_columns = [col for col in df.columns if any(keyword in col.lower() for keyword in ADDRESS_KEYWORDS)]
-    return address_columns
+    """Detect relevant address fields in the uploaded spreadsheet."""
+    address_col = next((col for col in df.columns if any(word in col.lower() for word in ADDRESS_KEYWORDS)), None)
+    city_col = next((col for col in df.columns if any(word in col.lower() for word in CITY_KEYWORDS)), None)
+    state_col = next((col for col in df.columns if any(word in col.lower() for word in STATE_KEYWORDS)), None)
+    zip_col = next((col for col in df.columns if any(word in col.lower() for word in ZIP_KEYWORDS)), None)
+
+    return address_col, city_col, state_col, zip_col
+
+def construct_search_url(address, city, state, zip_code):
+    """Generate a Google search link for Zillow results."""
+    query = f"{address}, {city}, {state} {zip_code} site:zillow.com"
+    search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+    return search_url
 
 @app.post("/api/process/")
 async def process_csv(file: UploadFile = File(...)):
     try:
-        # Read the uploaded file into a DataFrame
-        df = pd.read_excel(file.file)  # Use `pd.read_csv(file.file)` if it's a CSV
+        # Determine file extension
+        filename = file.filename.lower()
+        if filename.endswith(".xlsx"):
+            df = pd.read_excel(file.file, engine="openpyxl")
+        elif filename.endswith(".xls"):
+            df = pd.read_excel(file.file, engine="xlrd")
+        elif filename.endswith(".csv"):
+            df = pd.read_csv(file.file)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload .xlsx, .xls, or .csv")
 
-        # Detect address columns
-        address_columns = detect_address_columns(df)
+        # Detect address-related columns
+        address_col, city_col, state_col, zip_col = detect_address_columns(df)
 
-        if not address_columns:
-            raise HTTPException(status_code=400, detail="No address-related columns found in the spreadsheet.")
+        if not address_col or not city_col or not state_col or not zip_col:
+            return JSONResponse(
+                content={"message": "Missing address-related columns in the spreadsheet."}, status_code=400
+            )
 
-        # For testing, print the detected columns
-        print(f"Detected address columns: {address_columns}")
+        # Create Zillow search links
+        df["Zillow_Search_Link"] = df.apply(
+            lambda row: construct_search_url(
+                row[address_col], row[city_col], row[state_col], row[zip_col]
+            ), axis=1
+        )
 
-        # Here, you would add logic to search Zillow using these columns
-        # (for now, we will just return the detected columns)
-
-        # Save processed results (optional)
+        # Save the updated file
         output_path = "processed_results.csv"
         df.to_csv(output_path, index=False)
 
-        return {"message": "Address columns detected", "columns": address_columns}
+        return FileResponse(output_path, filename="updated_addresses.csv")
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
