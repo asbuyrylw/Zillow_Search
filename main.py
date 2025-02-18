@@ -1,13 +1,17 @@
 import pandas as pd
+import urllib.parse
+import requests
 import time
 import random
-import requests
 from bs4 import BeautifulSoup
-import asyncio
-import urllib.parse
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from playwright.async_api import async_playwright
 import os
 
 app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -24,6 +28,13 @@ USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 ]
 
+GOOGLE_SEARCH_URL = "https://www.googleapis.com/customsearch/v1"
+GOOGLE_API_KEY = "AIzaSyB-dCxlOWXyMHHlo19V-KZ1Q_kP3-8LzUk"  # Replace with your Google API Key
+GOOGLE_CX = "10ffad3c7a12d4614"  # Replace with your Custom Search Engine ID
+
+HEADLESS = True  # Set to False if you want to see the browser open
+
+
 def detect_address_columns(df):
     """Detect relevant address fields in the uploaded spreadsheet."""
     address_col = next((col for col in df.columns if any(word in col.lower() for word in ADDRESS_KEYWORDS)), None)
@@ -33,38 +44,25 @@ def detect_address_columns(df):
 
     return address_col, city_col, state_col, zip_col
 
-def get_zillow_link(address, city, state, zip_code):
-    """Search Google for a Zillow listing and return the first result."""
-    query = f"{address}, {city}, {state} {zip_code} site:zillow.com"
-    search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
 
-    headers = {
-        "User-Agent": random.choice(USER_AGENTS)
+def get_zillow_link(address, city, state, zip_code):
+    """Search Google Custom Search API for a Zillow listing and return the first Zillow link found."""
+    query = f"{address}, {city}, {state} {zip_code} site:zillow.com"
+    params = {
+        "q": query,
+        "key": GOOGLE_API_KEY,
+        "cx": GOOGLE_CX
     }
 
     try:
-        response = requests.get(search_url, headers=headers, timeout=10)
-
+        response = requests.get(GOOGLE_SEARCH_URL, params=params)
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            
-         # Look for links in the search results
-            for link in soup.find_all("a"):
-                href = link.get("href")
-                if href and "zillow.com/homedetails" in href:
-                    # Extract and clean Zillow link
-                    zillow_link = href.split("&")[0].replace("/url?q=", "")
-                    if "zillow.com" in zillow_link:
-                        return zillow_link
-
-            # If no direct property found, try a general Zillow search page
-            for link in soup.find_all("a"):
-                href = link.get("href")
-                if href and "zillow.com" in href:
-                    # Extract and clean Zillow link
-                    zillow_link = href.split("&")[0].replace("/url?q=", "")
-                    return zillow_link
-
+            data = response.json()
+            if "items" in data:
+                for item in data["items"]:
+                    if "zillow.com/homedetails" in item["link"]:  # Ensure it's a property page
+                        return item["link"]
+        print("No Zillow link found in search results.")
         return "No Zillow link found"
 
     except requests.RequestException as e:
@@ -92,8 +90,10 @@ async def process_csv(file: UploadFile = File(...)):
                 content={"message": "Missing address-related columns in the spreadsheet."}, status_code=400
             )
 
-       # Process all rows with a delay
+        # Process all rows with a delay
         zillow_links = []
+        zillow_prices = []
+
         for index, row in df.iterrows():
             address = row[address_col]
             city = row[city_col]
@@ -101,15 +101,22 @@ async def process_csv(file: UploadFile = File(...)):
             zip_code = row[zip_col]
 
             zillow_link = get_zillow_link(address, city, state, zip_code)
-            zillow_links.append(zillow_link)
+            if "zillow.com" in zillow_link:
+                zillow_data = scrape_zillow_property_info(zillow_link)
+                zillow_links.append(zillow_data.get("url", "No Zillow link found"))
+                zillow_prices.append(zillow_data.get("price", "N/A"))
+            else:
+                zillow_links.append("No Zillow link found")
+                zillow_prices.append("N/A")
 
             # Add a random delay between 2 to 10 seconds
             delay = random.randint(2, 10)
             print(f"Waiting {delay} seconds before the next request...")
             time.sleep(delay)
 
-        # Add Zillow links to DataFrame
+        # Add Zillow links and prices to DataFrame
         df["Zillow_Link"] = zillow_links
+        df["Zillow_Price"] = zillow_prices
 
         # Save the updated file
         output_path = "processed_results.csv"
