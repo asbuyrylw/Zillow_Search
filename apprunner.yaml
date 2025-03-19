@@ -14,11 +14,11 @@ run:
 environment:
   variables:
     FLASK_ENV: "production"
-    STRIPE_SECRET_KEY: "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"
-    JWT_SECRET_KEY: "supersecretkey"
-    SCRAPEAK_API_KEY: "8ad68c18-e329-43d7-afc0-dc08b00f152f"
-    GOOGLE_CX_ID: "10ffad3c7a12d4614"
-    GOOGLE_API_KEY: "AIzaSyB-dCxlOWXyMHHlo19V-KZ1Q_kP3-8LzUk"
+    STRIPE_SECRET_KEY: "your-stripe-key"
+    JWT_SECRET_KEY: "your-jwt-secret-key"
+    SCRAPEAK_API_KEY: "your-scrapeak-api-key"
+    GOOGLE_CX_ID: "your-google-cx-id"
+    GOOGLE_API_KEY: "your-google-api-key"
     AWS_REGION: "us-east-2"
     DYNAMODB_TABLE: "RealtyEnrichUsers"
     CELERY_BROKER_URL: "sqs://"
