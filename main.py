@@ -16,6 +16,7 @@ app = Flask(__name__)
 CORS(app)
 app.register_blueprint(routes)
 app.register_blueprint(billing_routes)
+app.register_blueprint(auth_routes)
 
 # ✅ JWT Authentication
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "supersecretkey")
